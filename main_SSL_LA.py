@@ -8,10 +8,11 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 import yaml
 from data_utils_SSL import genSpoof_list,Dataset_ASVspoof2019_train,Dataset_ASVspoof2021_eval
-from model import Model
+from aasist import Model
 from tensorboardX import SummaryWriter
 from core_scripts.startup_config import set_random_seed
-
+from transformers import Wav2Vec2ForCTC
+from torchaudio.models.wav2vec2.utils.import_huggingface import import_huggingface_model
 
 __author__ = "Hemlata Tak"
 __email__ = "tak@eurecom.fr"
@@ -237,7 +238,13 @@ if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'                  
     print('Device: {}'.format(device))
     
-    model = Model(args,device)
+    wav2vec2_xls_r_model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-xls-r-300m")
+    # Convert the model to torchaudio format, which supports TorchScript.
+    wav2vec2_xls_r_model = import_huggingface_model(wav2vec2_xls_r_model)
+    wav2vec2_xls_r_model.train()
+
+    model = Model(wav2vec2_xls_r_model)
+
     nb_params = sum([param.view(-1).size()[0] for param in model.parameters()])
     model =model.to(device)
     print('nb_params:',nb_params)

@@ -127,3 +127,18 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+cv-corpus-11.0-delta-2022-09-21
+commonvoice
+
+*.zip
+*.tar.gz
+*.pt
+*.wav
+*.pth
+fairseq-*
+Grad-TTS-test-2_best
+VCTK-synthesis-test-2_best
+logs/*
+*.ptl
+*.vscode
+nc_workspace

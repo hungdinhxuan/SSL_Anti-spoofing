@@ -8,10 +8,24 @@ from torch.utils.data import Dataset
 from RawBoost import ISD_additive_noise,LnL_convolutive_noise,SSI_additive_noise,normWav
 from random import randrange
 import random
-
+import os
+import csv
 
 ___author__ = "Hemlata Tak"
 __email__ = "tak@eurecom.fr"
+
+def get_CNSL_intern_IDs(csv_file_path='/datab/Dataset/CNSL_intern/meta_norm.csv'):
+    utterance_ids = []
+    labels = []
+    
+    with open(csv_file_path, mode='r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            utterance_ids.append(row['utt'])
+            labels.append(row['label'])
+
+    return utterance_ids, labels
+
 
 
 def genSpoof_list( dir_meta,is_train=False,is_eval=False):
@@ -73,7 +87,7 @@ class Dataset_ASVspoof2019_train(Dataset):
 	def __getitem__(self, index):
             
             utt_id = self.list_IDs[index]
-            X,fs = librosa.load(self.base_dir+'flac/'+utt_id+'.flac', sr=16000) 
+            X,fs = librosa.load(self.base_dir+utt_id+'.flac', sr=16000) 
             Y=process_Rawboost_feature(X,fs,self.args,self.algo)
             X_pad= pad(Y,self.cut)
             x_inp= Tensor(X_pad)
@@ -98,11 +112,53 @@ class Dataset_ASVspoof2021_eval(Dataset):
 	def __getitem__(self, index):
             
             utt_id = self.list_IDs[index]
-            X, fs = librosa.load(self.base_dir+'flac/'+utt_id+'.flac', sr=16000)
+            X, fs = librosa.load(self.base_dir+utt_id+'.flac', sr=16000)
             X_pad = pad(X,self.cut)
             x_inp = Tensor(X_pad)
             return x_inp,utt_id  
 
+
+class Dataset_CNSL_intern(Dataset):
+	def __init__(self, list_IDs, base_dir, labels):
+            
+            self.list_IDs = list_IDs
+            self.base_dir = base_dir
+            self.labels = labels
+            self.cut=64600 # take ~4 sec audio (64600 samples)
+
+	def __len__(self):
+            return len(self.list_IDs)
+
+
+	def __getitem__(self, index):
+            
+            utt_id = self.list_IDs[index]
+            X, fs = librosa.load(os.path.join(self.base_dir, 'fake' if self.labels[index] == 'spoof' else 'real'  ,utt_id+'.wav'), sr=16000)
+            X_pad = pad(X,self.cut)
+            x_inp = Tensor(X_pad)
+            return x_inp,utt_id  
+
+# In the wild
+def get_in_the_wild_IDs(csv_file_path='/datab/Dataset/in_the_wild_meta.csv'):
+            with open(csv_file_path, mode='r', encoding='utf-8') as file:
+                return [row['file'] for row in csv.DictReader(file)]
+
+class Dataset_in_the_wild(Dataset):
+	def __init__(self, list_IDs, base_dir):
+            self.list_IDs = list_IDs
+            self.base_dir = base_dir            
+            self.cut=64600 # take ~4 sec audio (64600 samples)
+
+	def __len__(self):
+            return len(self.list_IDs)
+
+	def __getitem__(self, index):
+            
+            utt_id = self.list_IDs[index]
+            X, fs = librosa.load(os.path.join(self.base_dir, utt_id), sr=16000)
+            X_pad = pad(X,self.cut)
+            x_inp = Tensor(X_pad)
+            return x_inp,utt_id  
 
 
 
