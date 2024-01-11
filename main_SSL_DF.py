@@ -7,11 +7,12 @@ from torch import nn
 from torch import Tensor
 from torch.utils.data import DataLoader
 import yaml
-from data_utils_SSL import genSpoof_list,Dataset_ASVspoof2019_train,Dataset_ASVspoof2021_eval
-from model import Model
+from data_utils_SSL import genSpoof_list,Dataset_ASVspoof2019_train,Dataset_ASVspoof2021_eval, get_CNSL_intern_IDs, Dataset_CNSL_intern, get_in_the_wild_IDs, Dataset_in_the_wild
+from aasist import Model
 from tensorboardX import SummaryWriter
 from core_scripts.startup_config import set_random_seed
-
+from transformers import Wav2Vec2ForCTC
+from torchaudio.models.wav2vec2.utils.import_huggingface import import_huggingface_model
 
 __author__ = "Hemlata Tak"
 __email__ = "tak@eurecom.fr"
@@ -235,7 +236,15 @@ if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'                  
     print('Device: {}'.format(device))
     
-    model = Model(args,device)
+    # model = Model(args,device)
+    wav2vec2_xls_r_model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-xls-r-300m")
+    # Convert the model to torchaudio format, which supports TorchScript.
+    wav2vec2_xls_r_model = import_huggingface_model(wav2vec2_xls_r_model)
+    wav2vec2_xls_r_model.train()
+
+    model = Model(wav2vec2_xls_r_model)
+
+
     nb_params = sum([param.view(-1).size()[0] for param in model.parameters()])
     model =nn.DataParallel(model).to(device)
     print('nb_params:',nb_params)
@@ -254,8 +263,20 @@ if __name__ == '__main__':
         print('no. of eval trials',len(file_eval))
         eval_set=Dataset_ASVspoof2021_eval(list_IDs = file_eval,base_dir = os.path.join(args.database_path+'ASVspoof2021_{}_eval/'.format(args.track)))
         produce_evaluation_file(eval_set, model, device, args.eval_output)
-        sys.exit(0)
-   
+
+        # CNSL_intern
+        # file_eval, labels = get_CNSL_intern_IDs()
+        # print('no. of eval trials',len(file_eval))
+        # eval_set=Dataset_CNSL_intern(list_IDs = file_eval,base_dir = os.path.join(args.database_path), labels=labels)
+        # produce_evaluation_file(eval_set, model, device, args.eval_output)
+        # sys.exit(0) 
+
+        # in_the_wild
+        # file_eval = get_in_the_wild_IDs()
+        # print('no. of eval trials',len(file_eval))
+        # eval_set=Dataset_CNSL_intern(list_IDs = file_eval,base_dir = os.path.join(args.database_path))
+        # produce_evaluation_file(eval_set, model, device, args.eval_output)
+        # sys.exit(0)
     
 
      

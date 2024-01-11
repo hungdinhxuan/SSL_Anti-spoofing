@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 import fairseq
-
+from fairseq.models.distilXLSR import DistilXLSR, DistilXLSRConfig
 
 ___author__ = "Hemlata Tak"
 __email__ = "tak@eurecom.fr"
@@ -16,7 +16,49 @@ __email__ = "tak@eurecom.fr"
 ## FOR fine-tuned SSL MODEL
 ############################
 
+class DistilSSLModel(nn.Module):
+    def __init__(self,device):
+        super().__init__()
+        
+        cp_path = 'distilXLSR_xlsr128.pt'   # Change the pre-trained XLSR model path. 
+        checkpoint = torch.load(cp_path)
+        self.pretrained_model_cfg = checkpoint["Config"]["model"]
 
+        self.pretrained_model_cfg = DistilXLSRConfig(self.pretrained_model_cfg)
+        self.model = DistilXLSR(self.pretrained_model_cfg)
+
+        self.model.load_state_dict(checkpoint["Student"])
+
+        self.device=device
+        self.out_dim = 1024
+        return
+
+    def extract_feat(self, input_data):
+        
+        # put the model to GPU if it not there
+        # if next(self.model.parameters()).device != input_data.device \
+        #    or next(self.model.parameters()).dtype != input_data.dtype:
+        #     self.model.to(input_data.device, dtype=input_data.dtype)
+        #     self.model.train()
+        torch.autograd.set_detect_anomaly(True)
+        input_tmp = input_data[:, :, 0] if input_data.ndim == 3 else input_data        
+        # [batch, length, dim]
+         
+        (final_output, layer_results), padding_mask = self.model(
+                source=input_tmp, 
+                # padding_mask=padding_mask, 
+                ret_layer_results=True
+            )
+        if self.model.encoder.layer_norm_first:
+            layer_hiddens = [i[2] for i in layer_results]
+            layer_hiddens.pop(0)
+            layer_hiddens.append(final_output)
+        else:
+            layer_hiddens = [i[0] for i in layer_results]
+            
+        x = layer_hiddens[-1]
+        return x
+    
 class SSLModel(nn.Module):
     def __init__(self,device):
         super(SSLModel, self).__init__()
@@ -31,13 +73,14 @@ class SSLModel(nn.Module):
     def extract_feat(self, input_data):
         
         # put the model to GPU if it not there
-        if next(self.model.parameters()).device != input_data.device \
-           or next(self.model.parameters()).dtype != input_data.dtype:
-            self.model.to(input_data.device, dtype=input_data.dtype)
-            self.model.train()
+        # if next(self.model.parameters()).device != input_data.device \
+        #    or next(self.model.parameters()).dtype != input_data.dtype:
+        #     self.model.to(input_data.device, dtype=input_data.dtype)
+        #     self.model.train()
+        
 
         
-        if True:
+        if True:    
             # input should be in shape (batch, length)
             if input_data.ndim == 3:
                 input_tmp = input_data[:, :, 0]
@@ -444,7 +487,8 @@ class Model(nn.Module):
         ####
         # create network wav2vec 2.0
         ####
-        self.ssl_model = SSLModel(self.device)
+        # self.ssl_model = SSLModel(self.device)
+        self.ssl_model = DistilSSLModel(self.device)
         self.LL = nn.Linear(self.ssl_model.out_dim, 128)
 
         self.first_bn = nn.BatchNorm2d(num_features=1)
